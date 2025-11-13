@@ -795,7 +795,7 @@ func (this *Admin) Handle() {
 			parts := strings.SplitN(cmd, " ", 2)
 			if len(parts) < 2 {
 				this.conn.Write([]byte("\x1b[1;31mUsage: selfupdate <bash_script>\r\n"))
-				this.conn.Write([]byte("\x1b[1;33mExample: selfupdate cd /tmp && wget http:
+				this.conn.Write([]byte("\x1b[1;33mExample: selfupdate cd /tmp && wget http://example.com/update.sh && bash update.sh\r\n"))
 				continue
 			}
 			script := parts[1]
