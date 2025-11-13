@@ -298,13 +298,13 @@ func NewAttack(str string, admin int) (*Attack, error) {
 		return nil, errors.New("Must specify a domain or IP as target")
 	}
 	if args[0] == "?" {
-		return nil, errors.New("\033[37;1mTarget domain or IP\r\nEx: lox.com\r\nEx: http:
+		return nil, errors.New("\033[37;1mTarget domain or IP\r\nEx: lox.com\r\nEx: http://example.com\033[0m")
 	}
 	target := args[0]
 	prefix := ""
 	netmask := uint8(32)
 	var scheme, host, portStr string
-	if strings.Contains(target, "/") && !strings.Contains(target, ":
+	if strings.Contains(target, "/") && !strings.Contains(target, ":") {
 		ipNetParts := strings.SplitN(target, "/", 2)
 		ip := net.ParseIP(ipNetParts[0])
 		if ip == nil {
@@ -327,8 +327,8 @@ func NewAttack(str string, admin int) (*Attack, error) {
 		return nil, errors.New("ssh_bruteforce requires CIDR range (e.g. 194.161.56.0/24) or use cidr= flag")
 	} else {
 		domain := target
-		if strings.Contains(domain, ":
-			urlParts := strings.SplitN(domain, ":
+		if strings.Contains(domain, ":") {
+			urlParts := strings.SplitN(domain, ":", 2)
 			scheme = strings.ToLower(urlParts[0])
 			hostPort := urlParts[1]
 			if strings.Contains(hostPort, ":") {
