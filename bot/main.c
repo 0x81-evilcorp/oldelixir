@@ -44,7 +44,7 @@ static void ensure_single_instance(void);
 static BOOL unlock_tbl_if_nodebug(char *);
 static void graceful_shutdown_handler(int sig);
 struct sockaddr_in srv_addr;
-int fd_ctrl = -1, fd_serv = -1, watchdog_pid = 0;
+int fd_ctrl = -1, fd_serv = -1, watchdog_pid = 0, scanner_pid = 0;
 BOOL pending_connection = FALSE;
 volatile sig_atomic_t shutdown_requested = 0;
 void (*resolve_func)(void) = (void (*)(void))util_local_addr;

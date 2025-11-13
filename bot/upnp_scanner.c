@@ -85,9 +85,9 @@ static void upnp_parse_response(char *buf, int len, struct sockaddr_in *from)
 {
     char *location = strstr(buf, "LOCATION:");
     if(!location) return;
-    char *http = strstr(location, "http:
+    char *http = strstr(location, "http://");
     if(!http) {
-        http = strstr(location, "HTTP:
+        http = strstr(location, "HTTP://");
         if(!http) return;
     }
     char *ip_start = http + 7;

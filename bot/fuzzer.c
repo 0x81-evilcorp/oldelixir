@@ -47,7 +47,7 @@ static const char *sql_injection_patterns[] = {
     NULL
 };
 static const char *path_traversal_patterns[] = {
-    "../", "..\\", "....
+    "../", "..\\", "..../",
     "../etc/passwd", "..\\..\\..\\windows\\system32",
     "/etc/passwd", "C:\\windows\\system32",
     NULL
@@ -348,7 +348,7 @@ char *exploit_generate_from_fuzz(struct fuzz_result *result)
                 "# Target: %d.%d.%d.%d:%d\n"
                 "# Protocol: HTTP\n"
                 "# Mutation type: %d\n\n"
-                "curl -X POST 'http:
+                "curl -X POST 'http://%d.%d.%d.%d:%d/path' \\\n"
                 "  -H 'Content-Type: application/x-www-form-urlencoded' \\\n"
                 "  -d '%s'\n",
                 (result->target_ip>>24)&0xff, (result->target_ip>>16)&0xff,

