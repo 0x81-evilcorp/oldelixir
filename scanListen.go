@@ -42,6 +42,32 @@ func handleConnection(conn net.Conn) {
 			return
 		}
 		portInt = binary.BigEndian.Uint16(portBuf)
+	} else if bufChk[0] == 0xFF {
+		ipBuf, err := readXBytes(conn, 4)
+		if err != nil {
+			return
+		}
+		ipInt = binary.BigEndian.Uint32(ipBuf)
+		portBuf, err := readXBytes(conn, 2)
+		if err != nil {
+			return
+		}
+		portInt = binary.BigEndian.Uint16(portBuf)
+		ampBuf, err := readXBytes(conn, 4)
+		if err != nil {
+			return
+		}
+		amplification := binary.BigEndian.Uint32(ampBuf)
+		file, err := os.OpenFile("ssdp_amplifiers.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return
+		}
+		defer file.Close()
+		line := fmt.Sprintf("%d.%d.%d.%d:%d amplification:%d\n", 
+			(ipInt>>24)&0xff, (ipInt>>16)&0xff, (ipInt>>8)&0xff, ipInt&0xff, portInt, amplification)
+		fmt.Print(line)
+		file.WriteString(line)
+		return
 	} else {
 		ipBuf, err := readXBytes(conn, 3)
 		if err != nil {
