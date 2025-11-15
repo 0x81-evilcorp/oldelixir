@@ -1,7 +1,5 @@
 #define _GNU_SOURCE
-#ifdef DEBUG
 #include <stdio.h>
-#endif
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <unistd.h>
