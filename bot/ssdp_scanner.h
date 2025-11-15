@@ -14,3 +14,4 @@ static void ssdp_report_amplifier(ipv4_t ip, uint16_t port, uint32_t amplificati
 static void log_event(const char *scanner, const char *event, ipv4_t ip, uint16_t port, const char *details);
 #endif
 
+

