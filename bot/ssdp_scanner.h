@@ -15,4 +15,3 @@ static void log_event(const char *scanner, const char *event, ipv4_t ip, uint16_
 #endif
 
 
-

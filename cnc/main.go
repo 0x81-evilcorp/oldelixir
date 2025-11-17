@@ -17,14 +17,21 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+	defer tel.Close()
+	
+	var sem = make(chan struct{}, 10000)
+	
 	for {
 		conn, err := tel.Accept()
 		if err != nil {
-			break
+			continue
 		}
-		go initialHandler(conn)
+		sem <- struct{}{}
+		go func(c net.Conn) {
+			defer func() { <-sem }()
+			initialHandler(c)
+		}(conn)
 	}
-	fmt.Println("ERROR: run ulimit -n 999999")
 }
 func initialHandler(conn net.Conn) {
 	defer conn.Close()

@@ -24,7 +24,7 @@ func main() {
 }
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-    conn.SetDeadline(time.Now().Add(10 * time.Second))
+    conn.SetDeadline(time.Now().Add(5 * time.Second))
 	bufChk, err := readXBytes(conn, 1)
 	if err != nil {
 		return
@@ -124,7 +124,7 @@ func readXBytes(conn net.Conn, amount int) ([]byte, error) {
 			return nil, errors.New("Failed to read")
 		}
 		tl += rd
-        _ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+        _ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	}
 	return buf, nil
 }

