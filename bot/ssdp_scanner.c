@@ -158,23 +158,24 @@ void ssdp_scanner(void)
     
     while(1)
     {
-        for(int i = 0; i < 50; i++)
+        for(int i = 0; i < 10; i++)
         {
             ipv4_t target = get_random_ssdp_ip();
             ssdp_setup_connection(target);
+            usleep(50000);
         }
-        scan_count += 50;
-        usleep(100000);
+        scan_count += 10;
+        usleep(500000);
         
         int responses_processed = 0;
         struct timeval start_time;
         gettimeofday(&start_time, NULL);
         
-        while(responses_processed < 20)
+        while(responses_processed < 5)
         {
             struct timeval now;
             gettimeofday(&now, NULL);
-            if((now.tv_sec - start_time.tv_sec) > 2)
+            if((now.tv_sec - start_time.tv_sec) > 1)
                 break;
             
             fd_set read_fds;
@@ -183,7 +184,7 @@ void ssdp_scanner(void)
             
             struct timeval tv;
             tv.tv_sec = 0;
-            tv.tv_usec = 100000;
+            tv.tv_usec = 200000;
             
             if(select(ssdp_udp_fd + 1, &read_fds, NULL, NULL, &tv) > 0)
             {
@@ -213,7 +214,7 @@ void ssdp_scanner(void)
             }
         }
         
-        usleep(200000);
+        usleep(1000000);
     }
 }
 

