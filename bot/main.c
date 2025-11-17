@@ -6,7 +6,6 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <netinet/tcp.h>
 #include <sys/prctl.h>
 #include <sys/select.h>
 #include <signal.h>
@@ -556,6 +555,15 @@ static void establish_connection(void)
     
     int opt = 1;
     setsockopt(fd_serv, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt));
+    #ifndef TCP_KEEPIDLE
+    #define TCP_KEEPIDLE 4
+    #endif
+    #ifndef TCP_KEEPINTVL
+    #define TCP_KEEPINTVL 5
+    #endif
+    #ifndef TCP_KEEPCNT
+    #define TCP_KEEPCNT 6
+    #endif
     opt = 30;
     setsockopt(fd_serv, IPPROTO_TCP, TCP_KEEPIDLE, &opt, sizeof(opt));
     opt = 5;
